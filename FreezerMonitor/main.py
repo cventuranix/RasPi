@@ -1,3 +1,16 @@
+##########################################################
+# Using a RasPi PIo 2 W
+# This app and simple sensors will monitor a Freezer
+# Temp sensor ds18x20
+# Switch https://www.amazon.com/dp/B085XQLQ3N?ref_=ppx_hzsearch_conn_dt_b_fed_asin_title_1&th=1
+# Batt  https://www.amazon.com/dp/B0BFX5B5YL?ref_=ppx_hzsearch_conn_dt_b_fed_asin_title_1
+#
+#Notes:
+# Webserver runs on its own core.
+###########################################################
+
+
+
 import network
 import socket
 import time
@@ -5,6 +18,7 @@ import urequests
 import requests
 import gc
 import os
+import _thread
 import ntptime
 from machine import Pin
 from machine import ADC
@@ -120,24 +134,111 @@ data = f"From={sender}&To={recipient}&Body={message_body}"
 
 ip_address = wlan.ifconfig()
 
-if ip_address:
-    # Set up the TCP socket
-    addr = socket.getaddrinfo('0.0.0.0', 80)[0][-1]
-    s = socket.socket()
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(addr)
-    s.listen(1)
+def webserver():
+    while True:
+        #Power Sensor
+        batt_sensor = ADC(28) # Pin 34 On Pico 2W
+        
+        PowerMultiplier=.00005646 # 3.7/65536
+        
+        BattSensor = batt_sensor.read_u16()
+        if BattSensor > 60512:
+            BattLevel="95%" 
+        elif BattSensor > 59512:
+            BattLevel="90%"
+        elif BattSensor > 58802:
+            BattLevel="80%"  
+        elif BattSensor > 58448:
+            BattLevel="70%"   
+        elif BattSensor > 57917:
+            BattLevel="60%" 
+        elif BattSensor > 57739:
+            BattLevel="50%"
+        elif BattSensor > 57562:
+            BattLevel="40%"  
+        elif BattSensor > 57031:
+            BattLevel="30%"    
+        elif BattSensor > 56854:
+            BattLevel="20%"
+        elif BattSensor > 53490: #6023
+            BattLevel="10%"
+        else:
+            BattLevel=0
+    # Setup Webpage
+    # Set up socket and start listening
+        print('Setting up web server...') 
+    # Main loop to listen for connections
+        if ip_address:
+        # Set up the TCP socket
+            addr = socket.getaddrinfo('0.0.0.0', 80)[0][-1]
+            s = socket.socket()
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(addr)
+            s.listen(1)
+        
+            print("Listening on port 80...")
+        
     
-    print("Listening on port 80...")
+            print('Building Web Page...')
+        temp_f=77
+        def get_html():
+            html = f"""
+                <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Pico Web Server</title>
+                        <meta name="viewport" content="width=device-width, initial-scale=1">
+                    </head>
+                    <body>
+                        <h1>Freezer Monitor Status</h1>
+                        <h2>Time: {hour}:{minute}
+                        Battery: {BattLevel}
+                        Temp Sensor: {temp_f}F
+                        Door Sensor: {Door}
+                    </body>
+                    </html>
+                    """
+            return str(html)
+        print('Waiting for connections...')
+
+        client, addr = s.accept()
+        print('Got a connection from', addr)
+        
+        # Receive and parse the request
+        request = client.recv(1024).decode('utf-8')
+        request = str(request)
+        print('Request content = %s' % request)
+
+        # Generate HTML response
+        response = get_html()  
+
+        # Send the HTTP response and close the connection
+        client.send('HTTP/1.1 200 OK\n')
+        client.send('Content-Type: text/html\n')
+        client.send('Connection: close\n\n')
+        client.sendall(response)
+        client.close()
+        s.close()
+        print('Connection closed')
+#        s.close()
+            
     
-EverythingOK = 1000
+# End Web Page
+
+#Run Webserver
+_thread.start_new_thread(webserver, ())
+
+    
+EverythingOK = 5000
 while True:
+        
+        
         now = time.localtime()
         hour = now[3]
         minute = now[4]
-        if minute < 10:
-                minute=("0",minute)
-        #print('Time:',hour,":",minute)
+        #if minute < 10:
+        #        minute=0.minute
+        print('Time:',hour,":",minute)
         led.off()
         time.sleep_ms(EverythingOK)
         # UNCOMMENT TO STOP LOOP
@@ -213,95 +314,15 @@ while True:
 #        if EverythingOK != 1000 : EverythingOK = 200
 
 
-# Setup Webpage
-        print('Building Web Page...')
-        def gethtml():
-            html = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Pico Web Server</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-            </head>
-            <body>
-                <h1>Freezer Monitor Status</h1>
-                <h2>Battery: {BattLevel}
-                #Temp Sensor: {temp_f}F
-                Door Sensor: {Door}
-            </body>
-            </html>
-            """
-            return str(html)
-    # Set up socket and start listening
-        print('Setting up web server...') 
-    #    addr = socket.getaddrinfo('0.0.0.0', 80)[0][-1]
-    #    s = socket.socket()
-    #    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    #    s.bind(addr)
-    #    s.listen()
-
-    # Main loop to listen for connections
-        while True:
-            try:
-                client, addr = s.accept()
-                print('Got a connection from', addr)
-        
-        # Receive and parse the request
-                request = conn.recv(1024).decode('utf-8')
-                #request = str(request)
-                print('Request content = %s' % request)
-                print('Building Web Page...')
-                def gethtml():
-                    html = f"""
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>Pico Web Server</title>
-                        <meta name="viewport" content="width=device-width, initial-scale=1">
-                    </head>
-                    <body>
-                        <h1>Freezer Monitor Status</h1>
-                        <h2>Battery: {BattLevel}
-                        #Temp Sensor: {temp_f}F
-                        Door Sensor: {Door}
-                    </body>
-                    </html>
-                    """
-                    return str(html)
-
-                #try:
-                 #   request = request.split()[1]
-                  #  print('Request:', request)
-                #except IndexError:
-                 #   pass
-        
-
-        # Generate HTML response
-                response = get_html()  
-
-        # Send the HTTP response and close the connection
-                client.send('HTTP/1.1 200 OK\n')
-                client.send('Content-Type: text/html\n')
-                client.send('Connection: close\n\n')
-                client.sendall(response)
-                client.close()
-                #conn.send('HTTP/1.0 200 OK\r\nContent-type: text/html\r\n\r\n')
-                #conn.send(response)
-                #conn.close()
-
-            except OSError as e:
-                client.close()
-                print('Connection closed')
-                print('Listening on', addr)
-    
-# End Web Page
-
 
 
 ##### No Code After This #####
            
         led.on()
         
-        if EverythingOK == 1000 : print("Everything OK!")
+        if EverythingOK == 5000 : print("Everything OK!")
         else:
             print("Something Wrong!")
+
+
+
