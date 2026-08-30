@@ -2,6 +2,7 @@ import network
 import socket
 import time
 import urequests
+import requests
 import gc
 import ntptime
 from machine import Pin
@@ -9,34 +10,51 @@ from machine import ADC
 import onewire
 import machine
 import ds18x20
+import URLs  # Config file with URLs to fetch Data
 
 
-#Power On
+#Power On LED	
 led = Pin("LED", Pin.OUT)
 led.on()
 
 
-
 #WiFI Info
+#BELOW Settings for Lab Testing, REMOVE FROM Release Code!!!
 ssid = 'Penny24'
 password = 'feadfeadfe'
 
-# Code update URL
-url = "http://www.google.com"
+if file_exists('config.py'):
+    print("File exists!")
+else:
+    print("Entering Setup Mode...")
 
 
 wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
 wlan.connect(ssid, password)
 
-# Wait for connection
+# Wait for connection 
 while not wlan.isconnected():
     time.sleep(1)
-
-
 NetConfig=wlan.ifconfig()
 #print(NetConfig)
 print('IP:', NetConfig[0])
+
+##### Add Code Here #####
+        # Check for URL update
+        # Grab code
+        URLOutputFile="RepoURLs.py"
+        response = urequests.get(RepoURL)
+        if response.status_code == 200:
+    	# Write the contents in 'wb' (write binary) mode
+    		with open(URLOutputFile, "wb") as file:
+        	file.write(response.content)
+    		print("Download complete.")
+    		print(f"Failed to download. Status code: {response.status_code}")
+            	print("Getting new URL File....")
+            print(response.status_code)
+            response.close()
+
 
 
 SecondsSinceBoot=(time.ticks_ms()/1000)
@@ -73,6 +91,7 @@ data = f"From={sender}&To={recipient}&Body={message_body}"
 #AuthToken=d90c847dc1a6c928109e5236c76bff87
 #AccountSID=AC569ec7c30e155675da831a120e59f914
 
+##########################################################################
 # MAIN CODE STARTS HERE
 EverythingOK = 1000
 while True:
@@ -86,19 +105,7 @@ while True:
         #break
     
         
-##### Add Code Here #####
-        # Check for code update
-        if minute <= 12: #Top of hour
-        # Grab code
-            response = urequests.get(url)
-            if response.status_code == 200:
-                print("Connected to FFE....")
-                print(response.status_code)
-                #print(response.text)    
-                response.close()
-                
-        
-        
+# Start sensor checks!
         print("Checking Sensors..")
         #Door Sensor
         #adc_pin2 = ADC(28)
@@ -137,6 +144,4 @@ while True:
         if EverythingOK == 1000 : print("Everything OK!")
         else:
             print("Something Wrong!")
-        
-        time.sleep_ms(EverythingOK)
 
