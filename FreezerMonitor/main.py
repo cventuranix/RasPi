@@ -1,10 +1,11 @@
-##########################################################
+#########################################################
 # Using a RasPi PIo 2 W
 # This app and simple sensors will monitor a Freezer
 # Temp sensor ds18x20
 # Switch https://www.amazon.com/dp/B085XQLQ3N?ref_=ppx_hzsearch_conn_dt_b_fed_asin_title_1&th=1
 # Batt  https://www.amazon.com/dp/B0BFX5B5YL?ref_=ppx_hzsearch_conn_dt_b_fed_asin_title_1
-#
+# Door Switch Blue to Voltage, Black to pin 31
+
 #Notes:
 # Webserver runs on its own core.
 ###########################################################
@@ -38,36 +39,17 @@ led.on()
 ssid = 'Penny24'
 password = 'feadfeadfe'
 
-print(os.listdir())
-#if os.stat("config.py"):
- #   print("File exists!")
-#else:
-#    print("Entering Setup Mode...")
-    
-def file_exists(filename):
-    try:
-        os.stat(filename)
-        return True
-    except OSError:
-        return False
-
-if file_exists("config.py"):
-    print("config.py exists!")
-else:
-    print("Entering Setup Mode....")
-
-
 
 wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
-wlan.connect(ssid, password)
+#wlan.connect(ssid, password)
 
 # Wait for connection 
-while not wlan.isconnected():
-    time.sleep(1)
-NetConfig=wlan.ifconfig()
+#while not wlan.isconnected():
+#    time.sleep(1)
+#NetConfig=wlan.ifconfig()
 #print(NetConfig)
-print('IP:', NetConfig[0])
+#print('IP:', NetConfig[0])
 
 ##### Add Code Here #####
 
@@ -75,29 +57,84 @@ print('IP:', NetConfig[0])
 # Grab code
 URLOutputFile="RepoURLs.py"
 print(RepoURL)
-response = urequests.get(RepoURL)
-if response.status_code == 200:
+#response = urequests.get(RepoURL)
+#if response.status_code == 200:
     # Write the contents in 'wb' (write binary) mode
-    with open(URLOutputFile, "wb") as file:
-        file.write(response.content)
-        print("Download complete.")
+ #   with open(URLOutputFile, "wb") as file:
+  #      file.write(response.content)
+   #     print("Download complete.")
     #print(f"Failed to download. Status code: {response.status_code}")
     #print("Getting new URL File....")
     #print(response.status_code)
-    response.close()
+    #response.close()
     
-print("Opening: ",URLOutputFile)
-with open(URLOutputFile, "r") as file:
-    print(file.read())
+#print("Opening: ",URLOutputFile)
+#with open(URLOutputFile, "r") as file:
+#    print(file.read())
+#file.close()
 
+#If config.py doesn't exist, enter setup
+#if file_exists("config.py"):
+#    print("config.py exists!")
+#else:
+#    print("Entering Setup Mode....")
+    # If missing config file, enter setup mode
+def file_exists(filename):
+        try:
+            os.stat(filename)
+            return True
+        except OSError:
+            return False
 
-file.close()
-
-
+if file_exists("config.py"):
+    print("config.py exists!")
+else:
+    print("Entering Setup Mode....")
+    SSID = "FeezerMon"
+    PASSWORD = "Fr3323r!"
+    def start_access_point(SSID, PASSWORD):
+    # Initialize the Access Point interface
+        ap = network.WLAN(network.AP_IF)
+    # Configure network name and security
+        ap.config(essid=SSID, password=PASSWORD)
+    # Activate the AP
+        ap.active(True)
+    # Wait for the interface to become active
+        while not ap.active():
+            time.sleep(1)
+        
+        print("Access Point successfully activated!")
+        print("IP Address configuration:", ap.ifconfig())
+        #ip_address = ap.ifconfig[0]
+        #print(ap.ifconfig[0])
+    # Run Setup Access Point
+    start_access_point(SSID, PASSWORD)
+    
+    ip_address = wlan.ifconfig()[0]
+    #Start Web Server
+    #ip_address = ap.ifconfig([0])
+    print("IP Address",ip_address)
+    if ip_address:
+        # Set up the TCP socket
+        addr = socket.getaddrinfo('0.0.0.0', 80)[0][-1]
+        s = socket.socket()
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(addr)
+        s.listen(1)
+        
+        print("Config Listening on port 80...")
 
 SecondsSinceBoot=(time.ticks_ms()/1000)
 
 print('Seconds since boot:',SecondsSinceBoot)
+
+# Set time bt NTP
+try:
+  ntptime.settime()  # Sets system time to UTC via pool.ntp.org
+  print('Time synced successfully!')
+except Exception as e:
+  print('Error syncing time:', e)
+print(time.localtime())
 
 #Get Local Time
 now = time.localtime()
@@ -164,6 +201,40 @@ def webserver():
             BattLevel="10%"
         else:
             BattLevel=0
+            
+        #Door Sensor
+        adc_pin2 = ADC(26) # Pin 31 On Pico 2W
+        
+        DoorSensor = adc_pin2.read_u16()
+        if DoorSensor < 50000:
+            Door="Closed"
+            print('Door:',DoorSensor,Door)
+        else:
+            Door="Open"
+            print("Door:",DoorSensor,Door)
+            
+            
+        # TEMP Sensor
+        #ds_pin = machine.Pin(16) # Pin 21 On Pico 2W
+        #ds_sensor = ds18x20.DS18X20(onewire.OneWire(ds_pin))
+        
+        #roms = ds_sensor.scan()
+        #print("Found DS devices: ", roms)
+        #ds_sensor.convert_temp()
+
+        #roms = ds_sensor.scan()
+        #print("Found DS devices: ", roms)
+        #ds_sensor.convert_temp()
+        #for rom in roms:
+         #   temp_c = ds_sensor.read_temp(rom)
+          #  temp_f = ((temp_c * (9/5)) + 32)
+           # print(f"Temperature: {temp_f:.2f} °F")
+        
+        #if temp_f >= 50:
+         #   EverythingOK = 5000
+         #   print('Temp:',temp_f)
+        #else:
+         #   EverythingOK = 1000
     # Setup Webpage
     # Set up socket and start listening
         print('Setting up web server...') 
@@ -180,7 +251,7 @@ def webserver():
         
     
             print('Building Web Page...')
-        temp_f=77
+        
         def get_html():
             html = f"""
                 <!DOCTYPE html>
@@ -239,8 +310,8 @@ while True:
         #if minute < 10:
         #        minute=0.minute
         print('Time:',hour,":",minute)
-        led.off()
         time.sleep_ms(EverythingOK)
+        led.off()
         # UNCOMMENT TO STOP LOOP
         #break
     
@@ -280,36 +351,38 @@ while True:
         print('Battery Reading:',BattSensor,BattLevel)
         
     #Door Sensor
-        #adc_pin2 = ADC(26) # Pin 31 On Pico 2W
+        adc_pin2 = ADC(26) # Pin 31 On Pico 2W
         
-        #DoorSensor = adc_pin2.read_u16()
-        #if DoorSensor <= 50000:
-        Door="Closed"
-        #    EverythingOK = 0
-        #    print('Door Open:',DoorSensor)
-        #else:
-        #    EverythingOK = 1000
+        DoorSensor = adc_pin2.read_u16()
+        if DoorSensor < 50000:
+            Door="Closed"
+            EverythingOK = 5000
+            print('Door:',DoorSensor,Door)
+        else:
+            EverythingOK = 1000
+            Door="Open"
+            print("Door:",DoorSensor,Door)
         
         #Temp Sensor
-        #ds_pin = machine.Pin(16) # Pin 21 On Pico 2W
-        #ds_sensor = ds18x20.DS18X20(onewire.OneWire(ds_pin))
+        ds_pin = machine.Pin(16) # Pin 21 On Pico 2W
+        ds_sensor = ds18x20.DS18X20(onewire.OneWire(ds_pin))
         
     #Power Sensor
-        #power_sensor = ADC(28)
+       # power_sensor = ADC(28)
         
-#        roms = ds_sensor.scan()
+        #roms = ds_sensor.scan()
         #print("Found DS devices: ", roms)
-#        ds_sensor.convert_temp()
-#        for rom in roms:
-#            temp_c = ds_sensor.read_temp(rom)
-#            temp_f = ((temp_c * (9/5)) + 32)
-#            print(f"Temperature: {temp_f:.2f} °F")
+        #ds_sensor.convert_temp()
+        #for rom in roms:
+         #   temp_c = ds_sensor.read_temp(rom)
+         #   temp_f = ((temp_c * (9/5)) + 32)
+         #   print(f"Temperature: {temp_f:.2f} °F")
         
-#        if temp_f >= 50:
-#            EverythingOK = 0
-#            print('Temp:',temp_f)
-#        else:
-#            EverythingOK = 1000
+        #if temp_f >= 50:
+        #    EverythingOK = 5000
+        #    print('Temp:',temp_f)
+        #else:
+        #    EverythingOK = 1000
         
 #        if EverythingOK != 1000 : EverythingOK = 200
 
@@ -319,7 +392,8 @@ while True:
 ##### No Code After This #####
            
         led.on()
-        
+        time.sleep_ms(1)
+        led.off()
         if EverythingOK == 5000 : print("Everything OK!")
         else:
             print("Something Wrong!")
